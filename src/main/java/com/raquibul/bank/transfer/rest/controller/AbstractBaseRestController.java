@@ -24,27 +24,20 @@ import io.swagger.annotations.Api;
 @Api(value = "payment", description = "Transfer Service REST API")
 public abstract class AbstractBaseRestController {
 	protected abstract Logger getLogger();
-//	public static ResponseEntity<?> createResponse(Object obj, ApiError error, HttpStatus status) {
-//		if (error != null) {
-//			return new ResponseEntity<Object>(error, new HttpHeaders(), error.getStatus());
-//		} else {
-//			return obj != null ? new ResponseEntity<Object>(obj, status) : new ResponseEntity<Object>(status);
-//		}
-//	}
 	
-	public static ResponseEntity<?> createResponse(ApiError error) {
+	protected static ResponseEntity<?> createResponse(ApiError error) {
 		return new ResponseEntity<Object>(error, new HttpHeaders(), error.getStatus());
 	}
 	
-	public static ResponseEntity<?> createResponse(Object obj, HttpStatus status) {
+	protected static ResponseEntity<?> createResponse(Object obj, HttpStatus status) {
 		return new ResponseEntity<Object>(obj, status);
 	}
 	
-	public static ResponseEntity<?> createResponse(HttpStatus status) {
+	protected static ResponseEntity<?> createResponse(HttpStatus status) {
 		return new ResponseEntity<Object>(status);
 	}
 	
-	public static ResponseEntity<?> createResponse(HttpHeaders httpheader, HttpStatus status) {
+	protected static ResponseEntity<?> createResponse(HttpHeaders httpheader, HttpStatus status) {
 		return new ResponseEntity<Object>(httpheader, status);
 	}
 	
