@@ -39,19 +39,18 @@ public class TransferRestExceptionHandler extends ResponseEntityExceptionHandler
 	}
 	/**
 	 * Handle All generic exception thrown by the application
-	 * @param ex - Generic Exception thrown
+	 * @param exception - Generic Exception thrown
 	 * @param request - the WebRequest
 	 * @return {@link ResponseEntity} - the ResResponseEntity
 	 */
 	@ExceptionHandler({ Exception.class })
-    public ResponseEntity<Object> handleAllException(Exception ex, final WebRequest request) {
-        logger.error("handleAllException :: There was an error", ex);
-        
+    public ResponseEntity<Object> handleAllException(Exception exception, final WebRequest request) {
+        logger.error("handleAllException :: There was an error", exception);
         StringBuilder message = new StringBuilder();
         message.append("There was an exception of type [")
-        .append(ex.getClass().getSimpleName()).append("] occured");
+        .append(exception.getClass().getSimpleName()).append("] occured");
         
-        ApiError apiError = new ApiError(HttpStatus.INTERNAL_SERVER_ERROR, ex.getLocalizedMessage(), message.toString());
+        ApiError apiError = new ApiError(HttpStatus.INTERNAL_SERVER_ERROR, exception.getLocalizedMessage(), message.toString());
         return new ResponseEntity<Object>(apiError, new HttpHeaders(), apiError.getStatus());
     }
 	
@@ -63,9 +62,35 @@ public class TransferRestExceptionHandler extends ResponseEntityExceptionHandler
 	 */
 	@ExceptionHandler({ TransferRestApiException.class })
     public ResponseEntity<Object> handleApiException(final TransferRestApiException apiException, final WebRequest request) {
-        logger.error("handleApiException :: There was an error", apiException);
+        logger.debug("handleApiException :: There was an error", apiException);
         
         ApiError apiError = new ApiError(HttpStatus.INTERNAL_SERVER_ERROR, apiException.getLocalizedMessage(), API_EXCEPTION_MESSAGE);
+        return new ResponseEntity<Object>(apiError, new HttpHeaders(), apiError.getStatus());
+    }
+	
+	/**
+	 * Handle RequestValidation exception thrown by the application
+	 * @param reqValException - the RequestValidationException
+	 * @param request
+	 * @return {@link ResponseEntity}
+	 */
+	@ExceptionHandler({ RequestValidationException.class })
+    public ResponseEntity<Object> handleRequestValidationException(final RequestValidationException reqValException, final WebRequest request) {
+        logger.debug("handleApiException :: There was an error", reqValException);
+        ApiError apiError = new ApiError(HttpStatus.BAD_REQUEST, reqValException.getLocalizedMessage(), "Request validation error");
+        return new ResponseEntity<Object>(apiError, new HttpHeaders(), apiError.getStatus());
+    }
+	
+	/**
+	 * Handle RequestValidation exception thrown by the application
+	 * @param resValException - the RequestValidationException
+	 * @param request
+	 * @return {@link ResponseEntity}
+	 */
+	@ExceptionHandler({ ResponseValidationException.class })
+    public ResponseEntity<Object> handleResponseValidationException(final ResponseValidationException resValException, final WebRequest request) {
+        logger.debug("handleApiException :: There was an error", resValException);
+        ApiError apiError = new ApiError(HttpStatus.CONFLICT, resValException.getLocalizedMessage(), "Response validation error");
         return new ResponseEntity<Object>(apiError, new HttpHeaders(), apiError.getStatus());
     }
 	

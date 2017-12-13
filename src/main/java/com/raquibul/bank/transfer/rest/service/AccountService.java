@@ -39,4 +39,5 @@ public interface AccountService {
 	 * @throws TransferRestApiException
 	 */
 	void deleteAccount(long id) throws TransferRestApiException;
+	boolean doesAccountExist(long id) throws TransferRestApiException;
 }

@@ -6,6 +6,8 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -15,34 +17,39 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.util.UriComponentsBuilder;
 
-import com.raquibul.bank.transfer.rest.ApiError;
+import com.raquibul.bank.transfer.rest.RequestValidationException;
+import com.raquibul.bank.transfer.rest.ResponseValidationException;
 import com.raquibul.bank.transfer.rest.TransferRestApiException;
 import com.raquibul.bank.transfer.rest.TransferRestExceptionHandler;
 import com.raquibul.bank.transfer.rest.model.Account;
 import com.raquibul.bank.transfer.rest.service.AccountService;
 import com.raquibul.bank.transfer.rest.service.AccountServiceImpl;
-import com.raquibul.bank.transfer.rest.util.TransferRestApiUtil;
 
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 
 /** The Controller for to cater the Account related request
- * @see AbstractRestController
+ * @see AbstractBaseRestController
  * @see TransferRestExceptionHandler
- * @see ApiError
  * @see TransferRestApiException
+ * @see RequestValidationException
+ * @see ResponseValidationException
  * @see AccountServiceImpl
  * @author Raquibul Hasan 
  *
  */
 @RestController
-public class AccountRestController extends AbstractRestController {
+public class AccountRestController extends AbstractBaseRestController {
 	private static final Logger LOGGER = LoggerFactory.getLogger(AccountRestController.class);
 	
 	@Autowired
 	private AccountService accountService;
+	
+	@Value (value = "${payment.rest.api.base.uri}/${payment.rest.api.account.get.uri}")
+	private String accountGetUri;
 	
 	/**
 	 * GET operation to get Account by Id
@@ -65,16 +72,12 @@ public class AccountRestController extends AbstractRestController {
 		        @ApiResponse(code = 404, message = "The resource you were trying to reach is not found")
 	})
 	public ResponseEntity<?> getAccount(@PathVariable Long id) throws TransferRestApiException {
-		ApiError error = null;
 		Account account = null;
 		LOGGER.debug("getAccount :: controller invoked, Account ID={}", id);
 		
 		try {
-			if ( id == null ||  id <= 0) {
-				error = new ApiError(HttpStatus.BAD_REQUEST, "Entered ID is 0 or negative", "Entered ID is 0 or negative");
-				LOGGER.error("getAccount :: provided ID 0 or negative");
-				return  createResponse(null, error, HttpStatus.BAD_REQUEST);
-			} 
+			//validate path param
+			validateRequestForNegativeValue("id", id);
 			account = accountService.getAccount(id);
 		} catch (TransferRestApiException e) {
 			LOGGER.error("getAccount :: There was an error getting Account", e);
@@ -83,7 +86,7 @@ public class AccountRestController extends AbstractRestController {
 			LOGGER.error("getAccount :: There was an exception in the Account service", e);
 			throw e;
 		}
-		return createResponse(account, error, HttpStatus.OK);
+		return createResponse(account, HttpStatus.OK);
 	}
 	
 	/**
@@ -106,7 +109,6 @@ public class AccountRestController extends AbstractRestController {
 		        @ApiResponse(code = 404, message = "The resource you were trying to reach is not found")
 	})
 	public ResponseEntity<?> getAllAccounts() throws TransferRestApiException {
-		ApiError error = null;
 		List<Account> resultList = new ArrayList<>();
 		LOGGER.debug("getAllAccounts :: controller invoked");
 		try {
@@ -115,7 +117,7 @@ public class AccountRestController extends AbstractRestController {
 			LOGGER.error("getAllAccounts :: There was an exception in the Account service", e);
 			throw e;
 		}
-		return createResponse(resultList, error, HttpStatus.OK);
+		return createResponse(resultList, HttpStatus.OK);
 	}
 	/**
 	 * POST operation to add An Account
@@ -137,17 +139,23 @@ public class AccountRestController extends AbstractRestController {
 		        @ApiResponse(code = 403, message = "Accessing the resource you were trying to reach is forbidden"),
 		        @ApiResponse(code = 404, message = "The resource you were trying to reach is not found")
 	})
-	public ResponseEntity<?> addAccount(@RequestBody Account account) throws TransferRestApiException {
-		ApiError error = null;
+	public ResponseEntity<?> createAccount(@RequestBody Account account) throws TransferRestApiException {
 		Account accountModel = null;
 		LOGGER.debug("addAccount :: controller invoked account={}", account);
+		HttpHeaders headers = null;
 		try {
-			if ( account == null || TransferRestApiUtil.isNegativeBalance(account.getBalance()) ) {
-				error = new ApiError(HttpStatus.BAD_REQUEST, "Provided account is invalid", "Provided account is invalid");
-				LOGGER.error("addAccount :: provided account is invalid, account={}", account);
-				return createResponse(null, error, HttpStatus.BAD_REQUEST);
-			} 
+			validateRequestForNullValue("account", account);
+			validateRequestForNegativeBalance(account);
+			
+			if (account.getId() != null && this.accountService.doesAccountExist(account.getId())) {
+				LOGGER.debug("addAccount :: Account with provided ID already exist. It can not be created");
+				throw new ResponseValidationException("Account can not be created. Account with the id already exists");
+			}
+			
 			accountModel = accountService.addAccount(account);
+
+			headers = new HttpHeaders();
+			headers.setLocation(UriComponentsBuilder.fromPath(accountGetUri + "/{id}").buildAndExpand(accountModel.getId()).toUri());
 		} catch (TransferRestApiException e) {
 			LOGGER.error("addAccount :: There was an error adding Account", e);
 			throw e;
@@ -155,7 +163,7 @@ public class AccountRestController extends AbstractRestController {
 			LOGGER.error("addAccount :: There was an exception in the account service", e);
 			throw e;
 		}
-		return createResponse(accountModel, error, HttpStatus.CREATED);
+		return createResponse(headers, HttpStatus.CREATED);
 	}
 	
 	/**
@@ -165,7 +173,7 @@ public class AccountRestController extends AbstractRestController {
 	 */
 	@CrossOrigin
 	@RequestMapping (
-		value = "${payment.rest.api.account.update.uri}",
+		value = "${payment.rest.api.account.update.uri}/{id}",
 		method = RequestMethod.PUT,
 		produces = { MediaType.APPLICATION_JSON_UTF8_VALUE }
 	)
@@ -177,16 +185,16 @@ public class AccountRestController extends AbstractRestController {
 		        @ApiResponse(code = 403, message = "Accessing the resource you were trying to reach is forbidden"),
 		        @ApiResponse(code = 404, message = "The resource you were trying to reach is not found")
 	})
-	public ResponseEntity<?> updateAccount(@RequestBody Account account) throws TransferRestApiException {
-		ApiError error = null;
+	public ResponseEntity<?> updateAccount(@PathVariable Long id,  @RequestBody Account account) throws TransferRestApiException {
 		LOGGER.debug("updateAccount :: controller invoked, Account={}", account);
-		
 		try {
-			if ( account == null || TransferRestApiUtil.isNegativeBalance(account.getBalance())) {
-				error = new ApiError(HttpStatus.BAD_REQUEST, "Provided Account is invalid", "Provided Account is invalid");
-				LOGGER.error("updateAccount :: provided Account is invalid, account={}", account);
-				return createResponse(null, error, HttpStatus.BAD_REQUEST);
-			} 
+			validateRequestForNullValue("account", account);
+			validateRequestForNegativeBalance(account);
+			
+			if (!this.accountService.doesAccountExist(id)) {
+				LOGGER.debug("updateAccount :: The account does not exist in Database [account.id={}]", id);
+				throw new ResponseValidationException("The account can not be updated. It does not exist in the database");
+			}
 			this.accountService.updateAccount(account);
 		} catch ( TransferRestApiException e) {
 			LOGGER.error("updateAccount :: There was an error updating Account", e);
@@ -195,7 +203,7 @@ public class AccountRestController extends AbstractRestController {
 			LOGGER.error("updateAccount :: There was an exception in the Account service", e);
 			throw e;
 		}
-		return createResponse(account, error, HttpStatus.CREATED);
+		return createResponse(HttpStatus.NO_CONTENT);
 	}
 	
 	/**
@@ -219,14 +227,13 @@ public class AccountRestController extends AbstractRestController {
 		        @ApiResponse(code = 404, message = "The resource you were trying to reach is not found")
 	})
 	public ResponseEntity<?> deleteAccount(@PathVariable Long id) throws TransferRestApiException {
-		ApiError error = null;
 		LOGGER.debug("deleteAccount :: controller invoked, account.ID={}", id);
+		validateRequestForNegativeValue("id", id);
 		try {
-			if ( id == null ||  id <= 0) {
-				error = new ApiError(HttpStatus.BAD_REQUEST, "Entered ID is invalid", "Entered ID invalid");
-				LOGGER.error("deleteAccount :: provided ID is invalid, ID={}", id);
-				return createResponse(null, error, HttpStatus.BAD_REQUEST);
-			} 
+			if (!this.accountService.doesAccountExist(id)) {
+				LOGGER.debug("deleteAccount :: The account to be deleted does not exist in Database");
+				throw new ResponseValidationException("The account to be deleted does not exist in Database");
+			}
 			this.accountService.deleteAccount(id);
 		} catch (TransferRestApiException e) {
 			LOGGER.error("deleteAccount :: There was an error deleting Account", e);
@@ -235,6 +242,11 @@ public class AccountRestController extends AbstractRestController {
 			LOGGER.error("deleteAccount :: There was an exception in the Account service", e);
 			throw e;
 		}
-		return createResponse(null, error, HttpStatus.NO_CONTENT);
+		return createResponse(HttpStatus.NO_CONTENT);
+	}
+
+	@Override
+	protected Logger getLogger() {
+		return LOGGER;
 	}
 }

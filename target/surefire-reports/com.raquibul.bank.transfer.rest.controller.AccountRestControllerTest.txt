@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.raquibul.bank.transfer.rest.controller.AccountRestControllerTest
+-------------------------------------------------------------------------------
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 9.998 sec - in com.raquibul.bank.transfer.rest.controller.AccountRestControllerTest

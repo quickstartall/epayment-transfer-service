@@ -27,9 +27,11 @@ import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.util.NestedServletException;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.raquibul.bank.transfer.rest.RequestValidationException;
 import com.raquibul.bank.transfer.rest.controller.AccountRestController;
 import com.raquibul.bank.transfer.rest.model.Account;
 import com.raquibul.bank.transfer.rest.repository.AccountJpaRepository;
@@ -58,72 +60,78 @@ public class AccountRestControllerTest {
 	private String accountDeleteUri;
 	@Value("${payment.rest.api.accounts.uri}")
 	private String accountsUri;
-	
+
 	@Mock
 	private AccountService accountService;
-	
-    @InjectMocks
-    private AccountRestController accountController;
-    
-    @MockBean
-    private AccountJpaRepository accountJpaRepository;
-    
-    @Before
-    public void init(){
-        MockitoAnnotations.initMocks(this);
-        mockMvc = MockMvcBuilders
-                .standaloneSetup(accountController)
-                .addPlaceholderValue("payment.rest.api.base.uri", accountRestBaseUri)
-                .addPlaceholderValue("payment.rest.api.account.get.uri", accountGetUri)
-                .addPlaceholderValue("payment.rest.api.account.add.uri", accountAddUri)
-                .addPlaceholderValue("payment.rest.api.account.update.uri", accountUpdateUri)
-                .addPlaceholderValue("payment.rest.api.account.delete.uri", accountDeleteUri)
-                .addPlaceholderValue("payment.rest.api.accounts.uri", accountsUri)
-                .build();
-    }
-    
-    @Test
+
+	@InjectMocks
+	private AccountRestController accountController;
+
+	@MockBean
+	private AccountJpaRepository accountJpaRepository;
+
+	@Before
+	public void init() {
+		MockitoAnnotations.initMocks(this);
+		mockMvc = MockMvcBuilders.standaloneSetup(accountController)
+				.addPlaceholderValue("payment.rest.api.base.uri", accountRestBaseUri)
+				.addPlaceholderValue("payment.rest.api.account.get.uri", accountGetUri)
+				.addPlaceholderValue("payment.rest.api.account.add.uri", accountAddUri)
+				.addPlaceholderValue("payment.rest.api.account.update.uri", accountUpdateUri)
+				.addPlaceholderValue("payment.rest.api.account.delete.uri", accountDeleteUri)
+				.addPlaceholderValue("payment.rest.api.accounts.uri", accountsUri).build();
+	}
+
+	@Test
 	public void testStatusForAccountAddRequest() throws Exception {
-    	// Add Account
+		// Add Account
 		Mockito.when(accountService.addAccount(Mockito.any())).thenReturn(getAccount());
-		this.mockMvc.perform(MockMvcRequestBuilders.post(accountRestBaseUri + accountAddUri)
-			.content(getRequestJson()).contentType(MediaType.APPLICATION_JSON_UTF8))
-			.andDo(print()).andExpect(status().isCreated());
-		
-    }
-    
-    //Find Accounts
-    @Test
+		this.mockMvc.perform(MockMvcRequestBuilders.post(accountRestBaseUri + accountAddUri).content(getRequestJson())
+				.contentType(MediaType.APPLICATION_JSON_UTF8)).andDo(print()).andExpect(status().isCreated());
+
+	}
+
+	// Find Accounts
+	@Test
 	public void testStatusForAccountsFetchAllRequest() throws Exception {
 		Mockito.when(accountService.getAllAccounts()).thenReturn(Arrays.asList(getAccount()));
 		this.mockMvc.perform(MockMvcRequestBuilders.get(accountRestBaseUri + accountsUri)).andDo(print())
-			.andExpect(status().isOk());
+				.andExpect(status().isOk());
 	}
-	
-    //Check Response is JSON Array
+
+	// Check Response is JSON Array
 	@Test
 	public void testContentIsArrayForAccountsFetchAllRequest() throws Exception {
 		Mockito.when(accountService.getAllAccounts()).thenReturn(Arrays.asList(getAccount()));
-		this.mockMvc.perform(MockMvcRequestBuilders.get(accountRestBaseUri + accountsUri)).andDo(print()).andExpect(status().isOk())
-			.andExpect(jsonPath("$").isArray());
+		this.mockMvc.perform(MockMvcRequestBuilders.get(accountRestBaseUri + accountsUri)).andDo(print())
+				.andExpect(status().isOk()).andExpect(jsonPath("$").isArray());
 	}
-	
-	//Update Account
+
+	// Update Account
 	@Test
-	@Rollback(false)
 	public void testStatusForAccountUpdateRequest() throws Exception {
 		Mockito.when(accountService.getAccount(Mockito.anyLong())).thenReturn(getAccount());
 		Mockito.doNothing().when(accountService).updateAccount(Mockito.any());
-		this.mockMvc.perform(MockMvcRequestBuilders.put(accountRestBaseUri + accountUpdateUri)
-			.content(getRequestJson()).contentType(MediaType.APPLICATION_JSON_UTF8))
-			.andDo(print()).andExpect(status().isCreated());
-		
-		//Negative Balance
+		Mockito.when(accountService.doesAccountExist(Mockito.anyLong())).thenReturn(true);
+
+		this.mockMvc
+				.perform(MockMvcRequestBuilders.put(accountRestBaseUri + accountUpdateUri + "/1")
+						.content(getRequestJson()).contentType(MediaType.APPLICATION_JSON_UTF8))
+				.andDo(print()).andExpect(status().isNoContent());
+	}
+
+	// Update Account - negative balance
+	@Test(expected = NestedServletException.class)
+	public void testStatusForAccountUpdateRequestNegativeBal() throws Exception {
+		// Negative Balance
 		Mockito.when(accountService.getAccount(Mockito.anyLong())).thenReturn(getAccount());
 		Mockito.doNothing().when(accountService).updateAccount(Mockito.any());
-		this.mockMvc.perform(MockMvcRequestBuilders.put(accountRestBaseUri + accountUpdateUri)
-			.content(getRequestJsonNegativeBalanace()).contentType(MediaType.APPLICATION_JSON_UTF8))
-			.andDo(print()).andExpect(status().isBadRequest());
+		Mockito.when(accountService.doesAccountExist(Mockito.anyLong())).thenReturn(true);
+
+		this.mockMvc
+				.perform(MockMvcRequestBuilders.put(accountRestBaseUri + accountUpdateUri + "/1")
+						.content(getRequestJsonNegativeBalanace()).contentType(MediaType.APPLICATION_JSON_UTF8))
+				.andDo(print()).andExpect(status().isBadRequest());
 	}
 
 	private String getRequestJson() throws JsonProcessingException {
@@ -136,7 +144,7 @@ public class AccountRestControllerTest {
 		jsonString = objectMapper.writeValueAsString(account);
 		return jsonString;
 	}
-	
+
 	private String getRequestJsonNegativeBalanace() throws JsonProcessingException {
 		String jsonString = null;
 		ObjectMapper objectMapper = new ObjectMapper();
@@ -147,13 +155,13 @@ public class AccountRestControllerTest {
 		jsonString = objectMapper.writeValueAsString(account);
 		return jsonString;
 	}
-	
+
 	private Account getAccount() {
 		Account account = new Account();
 		account.setId(1l);
 		return account;
 	}
-	
+
 	@After
 	public void cleanup() {
 		mockMvc = null;

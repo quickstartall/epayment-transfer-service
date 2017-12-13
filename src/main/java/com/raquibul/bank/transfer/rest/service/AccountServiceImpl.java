@@ -70,6 +70,23 @@ public class AccountServiceImpl implements AccountService {
 			throw new TransferRestApiException(e);
 		}
 	}
+	
+	/**
+	 * Get Account by Id
+	 * @param id - the Account Id
+	 * @return Account - the Account by Id
+	 */
+	@Override
+	public boolean doesAccountExist(long id) 
+			throws TransferRestApiException {
+		try {
+			return this.accountJpaRepository.exists(id);
+		} catch (Exception e) {
+			LOGGER.error("getAccount :: There was an unknown exception", e);
+			throw new TransferRestApiException(e);
+		}
+	}
+	
 	/**
 	 * Add Account
 	 */

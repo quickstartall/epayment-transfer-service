@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.raquibul.bank.transfer.rest.ApiError;
+import com.raquibul.bank.transfer.rest.RequestValidationException;
 import com.raquibul.bank.transfer.rest.TransferRestApiException;
 import com.raquibul.bank.transfer.rest.TransferRestExceptionHandler;
 import com.raquibul.bank.transfer.rest.model.Account;
@@ -31,16 +31,16 @@ import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 /**
  * The Rest Controller to cater transfer requests
- * @see AbstractRestController
+ * @see AbstractBaseRestController
  * @see TransferRestExceptionHandler
- * @see ApiError
  * @see TransferRestApiException
+ * @see RequestValidationException
  * @see TransferServiceImpl
  * @author Raquibul Hasan
  *
  */
 @RestController
-public class TransferRestController extends AbstractRestController {
+public class TransferRestController extends AbstractBaseRestController {
 	private static final Logger LOGGER = LoggerFactory.getLogger(AccountRestController.class);
 
 	@Autowired
@@ -66,7 +66,6 @@ public class TransferRestController extends AbstractRestController {
 		        @ApiResponse(code = 404, message = "The resource you were trying to reach is not found")
 	})
 	public ResponseEntity<?> getAllTransactions() throws Exception {
-		ApiError error = null;
 		List<Transfer> transactions = null;
 		LOGGER.debug("getAllTransactions :: controller invoked");
 		try {
@@ -78,7 +77,7 @@ public class TransferRestController extends AbstractRestController {
 			LOGGER.error("getAllTransactions :: There was an exception in the Account service", e);
 			throw e;
 		}
-		return createResponse(transactions, error, HttpStatus.OK);
+		return createResponse(transactions, HttpStatus.OK);
 	}
 	
 	
@@ -104,14 +103,12 @@ public class TransferRestController extends AbstractRestController {
 		        @ApiResponse(code = 404, message = "The resource you were trying to reach is not found")
 	})
 	public ResponseEntity<?> getTransactions(@RequestParam  @DateTimeFormat(pattern="yyyy-MM-dd") Date startDate, @RequestParam @DateTimeFormat(pattern="yyyy-MM-dd") Date endDate) throws Exception {
-		ApiError error = null;
 		List<Transfer> transactions = null;
 		LOGGER.debug("getTransactions :: controller invoked, startDate={}, endDate={}", startDate, endDate );
 		try {
 			if (startDate.after(endDate)) {
-				error = new ApiError(HttpStatus.BAD_REQUEST, "Start Date can not be greater than End Date", "Start Date can not be greater than End Date");
 				LOGGER.error("getTransactions :: provided ID 0 or negative");
-				return  createResponse(null, error, HttpStatus.BAD_REQUEST);
+				throw new RequestValidationException("Start Date can not be greater than End Date");
 			}
 			transactions = transferService.getTransactionsBetween(startDate, endDate);
 		} catch (TransferRestApiException e) {
@@ -121,7 +118,7 @@ public class TransferRestController extends AbstractRestController {
 			LOGGER.error("getTransactions :: There was an exception in the Account service", e);
 			throw e;
 		}
-		return createResponse(transactions, error, HttpStatus.OK);
+		return createResponse(transactions, HttpStatus.OK);
 	}
 	
 	/**
@@ -145,24 +142,19 @@ public class TransferRestController extends AbstractRestController {
 		        @ApiResponse(code = 404, message = "The resource you were trying to reach is not found")
 	})
 	public ResponseEntity<?> addTransfer(@RequestBody (required=false) Transfer transfer) throws Exception {
-		ApiError error = null;
 		Transfer transferModel = null;
 		LOGGER.debug("addAccount :: controller invoked transfer={}", transfer);
+		
+		validateRequestForNullValue("transfer", transfer);
 		try {
-			if ( transfer == null ) {
-				error = new ApiError(HttpStatus.BAD_REQUEST, "Provided transfer is invalid", "Provided transfer is invalid");
-				LOGGER.error("addAccount :: provided account is invalid, transfer={}", transfer);
-				return createResponse(null, error, HttpStatus.BAD_REQUEST);
-			}
 			if (StringUtils.isEmpty(transfer.getFromAccount())) {
-				error = new ApiError(HttpStatus.BAD_REQUEST, "invalid fromAccount", "invalid fromAccount");
 				LOGGER.error("addAccount :: invalid fromAccount, fromAccount={}", transfer.getFromAccount());
-				return createResponse(null, error, HttpStatus.BAD_REQUEST);
+				throw new RequestValidationException("invalid fromAccount");
 			}
+			
 			if (StringUtils.isEmpty(transfer.getToAccount())) {
-				error = new ApiError(HttpStatus.BAD_REQUEST, "invalid toAccount", "invalid toAccount");
 				LOGGER.error("addAccount :: invalid toAccount, toAccount={}", transfer.getToAccount());
-				return createResponse(null, error, HttpStatus.BAD_REQUEST);
+				throw new RequestValidationException("invalid toAccount");
 			}
 			transferModel = transferService.addTransfer(transfer);
 		} catch (TransferRestApiException e) {
@@ -172,6 +164,11 @@ public class TransferRestController extends AbstractRestController {
 			LOGGER.error("addAccount :: There was an exception in the account service", e);
 			throw e;
 		}
-		return createResponse(transferModel, error, HttpStatus.CREATED);
+		return createResponse(transferModel, HttpStatus.CREATED);
+	}
+
+	@Override
+	protected Logger getLogger() {
+		return LOGGER;
 	}
 }
